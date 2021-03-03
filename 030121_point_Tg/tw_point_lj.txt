@@ -1,0 +1,376 @@
+#Gay-Berne test - Tsai-Wei Lin
+
+
+######################## Variables ############################### 
+variable A equal 100.0
+variable A_last equal 100.0
+
+variable Pfix equal 0.0
+variable Tfix equal 1.0
+
+variable Rmin equal 1.1
+variable Cprob equal 0.3
+variable Cseed equal 777
+
+variable N_penetrant equal 1000
+variable fcross equal 0.5
+variable Nchain equal 20
+variable Nmono equal 30
+variable N_dangle equal 4
+#variable Ncross equal ${fcross}*${Nmono}
+variable lenb equal 12.842
+variable Seed_num equal 82562066
+
+# f_cross = 0.1
+#seed_24305792 ok
+#seed_64749587 ok
+#seed_122819053 ok
+#seed_138026712 ok
+#seed_233001038 ok
+#seed_270765856 ok
+#seed_336854794 ok
+#seed_699495782 ok
+#seed_923177293 ok
+#seed_941983002 ok
+
+# f_cross = 0.5
+#seed_353400281 ok
+#seed_366250749 ok
+#seed_525217867 ok
+#seed_578739937 ok
+#seed_759006467 ok
+#seed_28044267
+#seed_82562066
+#seed_509555049
+#seed_516182902
+#seed_740021161
+
+
+
+variable restart_out_name index restart_soft_A_${A}_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}
+variable restart_in_name index restart_soft_A_${A_last}_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}
+
+#restart_soft_A_100_N_dangle_4_seed_1_fcross_0.1_Nchain_20_Nmono_30.2000
+#restart_soft_A_100_N_dangle_4_seed_1_fcross_0.1_Nchain_20_Nmono_30.2000
+
+variable outputname index soft_A_${A}_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}
+
+variable outputname_relax_before index relax_T=${Tfix}_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}_Rmin_${Rmin}_Prob_${Cprob}_Cseed_${Cseed}
+
+variable outputname_cross index crosslink_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}_Rmin_${Rmin}_Prob_${Cprob}_Cseed_${Cseed}
+
+variable outputname_relax_after index after_crosslinked_N_dangle_${N_dangle}_seed_${Seed_num}_fcross_${fcross}_Nchain_${Nchain}_Nmono_${Nmono}_Rmin_${Rmin}_Prob_${Cprob}_Cseed_${Cseed}
+
+variable fname index Coord_N_dangle_${N_dangle}_seed_${Seed_num}_random_lb_1.300_angle_eps_10_f_cross_${fcross}0_N_mono_${Nmono}_N_Chains_${Nchain}_L_${lenb}.txt
+
+
+#restart_crosslink_N_dangle_4_seed_34630924_fcross_0.1_Nchain_20_Nmono_30_Rmin_1.1_Prob_0.3_Cseed_777.20000
+#restart_relax_T=1_N_dangle_4_seed_34630924_fcross_0.1_Nchain_20_Nmono_30_
+log	./f_cross=${fcross}/seed_${Seed_num}/lammps_log_lj_point_.lammps
+
+######################## INITIALIZATION ############################### 
+units	lj
+dimension	3
+boundary	p p p
+
+atom_style	full
+
+######################## Read File ####################################
+
+#read_data	./${fname}	extra/bond/types 1 extra/angle/types 1 extra/bond/per/atom 2 extra/angle/per/atom 100 extra/special/per/atom 26
+
+read_restart ./f_cross=${fcross}/seed_${Seed_num}/${restart_in_name}.4000
+#read_restart ./f_cross=${fcross}/seed_${Seed_num}/restart_${outputname_cross}.20000
+
+######################## Group ########################
+
+
+#set 	     type 1 mass 1.0
+#set 	     type 1 shape 1 1 10
+#set	     	 group all quat/random 18238
+
+group bead type 1
+group pene type 1 2
+
+variable dofGB equal count(pene)
+print "dofGB = ${dofGB} "
+
+
+######################## Potential Information ########################
+
+#pair_style	hybrid/overlay lj/cut 2.5	coul/cut 5.0
+pair_style	hybrid/overlay lj/cut 2.5	
+###--------------------- Coulumb coefficient --------------------------
+
+#pair_coeff	* * coul/cut
+
+###--------------------- Gay-Berne / LJ potential coefficient ----------------------
+### atoms with type 1-4 are polymer beads
+
+pair_coeff	* * lj/cut 1.0 1.0
+
+
+###--------------------- Harmonic potential ---------------------------
+bond_style	harmonic 
+bond_coeff	* 1000.0 1.000			## K(1/2 included) equilibrium bond distance.
+
+###--------------------- FENE potential -------------------------------
+#bond_style	fene
+#bond_coeff	* 30.0000 1.5000 1.0000 1.0000		## K_F r_F epsilon sigma
+
+###--------------------- Bending potential ----------------------------
+angle_style	cosine
+angle_coeff * 2.0						## K (energy)
+
+###--------------------- Special bond ---------------------------
+### To turn on the 1-3 and 1-4 interactions and turn off the 1-2 interaction
+
+special_bonds lj 0.0 1.0 1.0
+
+
+### For a lj units system with FENE bonds, a setting of special bonds 0 1 1 should be used: 
+### turn on the 1-3, and 1-4 interactions and turn off the 1-2 interaction.
+#special_bonds fene angle yes dihedral no
+
+
+
+######################## Set Time Step ################################
+
+timestep	0.001
+
+###--------------------- Minimizing the system ------------------------
+#min_style quickmin
+#min_modify dmax 0.1 line forcezero
+
+###---------------
+#comm_modify cutoff 4.0
+
+######################## Boundary Conditions ###########################
+
+###--------------------- (1) Relax the system at NVT with GB(LJ)+Harmonic before crosslinking -----------------------------------------
+reset_timestep 0
+
+###--------------------- Propertry compute -------------------------------
+#compute		tempgb 	all		temp/asphere 
+#compute		q 		all 	property/atom quatw quati quatj quatk
+#compute		shape 	all 	property/atom shapex shapey shapez
+
+compute 	cbond 	all 	property/local btype batom1 batom2
+compute 	cangle 	all 	property/local atype aatom1 aatom2 aatom3
+
+###--------------------- Output quantities per atom ----------------------
+#dump 	d1 all custom 2000 ./f_cross=${fcross}/seed_${Seed_num}/Pvar_${outputname_relax_before}_*.txt &
+	     					id mol type q x y z
+#dump	d2 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/bond_${outputname_relax_before}_*.txt &
+							c_cbond[1] c_cbond[2] c_cbond[3]
+#dump	d3 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/angle_${outputname_relax_before}_*.txt &
+							c_cangle[1] c_cangle[2] c_cangle[3] c_cangle[4]
+
+fix f11 all 	nvt temp 1.0 1.0 0.1
+#fix f1 all	npt	temp ${Tfix} ${Tfix} 0.1 iso 1.0 ${Pfix} 0.1 drag 1
+
+#compute_modify tempgb extra 1
+
+#restart 10000 ./seed_${Seed_num}/restart_${outputname_relax_before}
+
+thermo 1000
+thermo_style custom step xhi temp press evdwl ebond eangle etotal pe ke
+run_style	verlet
+run 10000
+
+unfix f11
+
+#undump d1
+#undump d2
+#undump d3
+
+#uncompute tempgb
+#uncompute q 
+#uncompute shape
+uncompute cbond 
+uncompute cangle
+
+###--------------------- (1-2) Relax the system at constant T (Varing P) with GB(LJ)+Harmonic before crosslinking -----------------------------------------
+reset_timestep 0
+
+###--------------------- Propertry compute -------------------------------
+#compute		tempgb 	all		temp/asphere 
+#compute		q 		all 	property/atom quatw quati quatj quatk
+#compute		shape 	all 	property/atom shapex shapey shapez
+
+compute 	cbond 	all 	property/local btype batom1 batom2
+compute 	cangle 	all 	property/local atype aatom1 aatom2 aatom3
+
+###--------------------- Output quantities per atom ----------------------
+dump 	d1 all custom 2000 ./f_cross=${fcross}/seed_${Seed_num}/Pvar_${outputname_relax_before}_*.txt &
+	     					id mol type q x y z 
+#dump	d2 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/bond_${outputname_relax_before}_*.txt &
+							c_cbond[1] c_cbond[2] c_cbond[3]
+#dump	d3 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/angle_${outputname_relax_before}_*.txt &
+							c_cangle[1] c_cangle[2] c_cangle[3] c_cangle[4]
+
+#fix f1 all 	nvt temp 1.0 1.0 0.1
+fix f12 all	npt	temp ${Tfix} ${Tfix} 0.1 iso 1.0 ${Pfix} 0.1 drag 1
+
+#compute_modify tempgb extra 1
+
+#restart 10000 ./f_cross=${fcross}/seed_${Seed_num}/restart_${outputname_relax_before}
+
+thermo 1000
+thermo_style custom step xhi temp press evdwl ebond eangle etotal pe ke
+run_style	verlet
+run 10000
+
+unfix f12
+
+undump d1
+#undump d2
+#undump d3
+
+#uncompute tempgb
+#uncompute q 
+#uncompute shape
+uncompute cbond 
+uncompute cangle
+
+###--------------------- (1-3) Relax the system at constant T and P with GB(LJ)+Harmonic before crosslinking -----------------------------------------
+reset_timestep 0
+
+###--------------------- Propertry compute -------------------------------
+#compute		tempgb 	all		temp/asphere 
+#compute		q 		all 	property/atom quatw quati quatj quatk
+#compute		shape 	all 	property/atom shapex shapey shapez
+
+compute 	cbond 	all 	property/local btype batom1 batom2
+compute 	cangle 	all 	property/local atype aatom1 aatom2 aatom3
+
+###--------------------- Output quantities per atom ----------------------
+dump 	d1 all custom 2000 ./f_cross=${fcross}/seed_${Seed_num}/${outputname_relax_before}_*.txt &
+	     					id mol type q x y z 
+dump	d2 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/bond_${outputname_relax_before}_*.txt &
+							c_cbond[1] c_cbond[2] c_cbond[3]
+dump	d3 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/angle_${outputname_relax_before}_*.txt &
+							c_cangle[1] c_cangle[2] c_cangle[3] c_cangle[4]
+
+
+fix f13 all	npt temp ${Tfix} ${Tfix} 0.1 iso ${Pfix} ${Pfix} 0.1 drag 1
+
+#compute_modify tempgb extra 1
+
+#restart 10000 ./f_cross=${fcross}/seed_${Seed_num}/restart_${outputname_relax_before}
+
+thermo 1000
+thermo_style custom step xhi temp press evdwl ebond eangle etotal pe ke
+run_style	verlet
+run 10000
+
+unfix f13
+
+undump d1
+undump d2
+undump d3
+
+#uncompute tempgb
+#uncompute q 
+#uncompute shape
+uncompute cbond 
+uncompute cangle
+
+###--------------------- (2) Crosslinking to form network -----------------------------------------
+reset_timestep 0
+
+###--------------------- Propertry compute -------------------------------
+#compute		tempgb 	all		temp/asphere 
+#compute		q 		all 	property/atom quatw quati quatj quatk
+#compute		shape 	all 	property/atom shapex shapey shapez
+
+compute 	cbond 	all 	property/local btype batom1 batom2
+compute 	cangle 	all 	property/local atype aatom1 aatom2 aatom3
+
+###--------------------- Output quantities per atom ----------------------
+dump 	d1 all custom 2000 ./f_cross=${fcross}/seed_${Seed_num}/${outputname_cross}_*.txt &
+	     					id mol type q x y z 
+dump	d2 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/bond_${outputname_cross}_*.txt &
+							c_cbond[1] c_cbond[2] c_cbond[3]
+dump	d3 all local 2000 ./f_cross=${fcross}/seed_${Seed_num}/angle_${outputname_cross}_*.txt &
+							c_cangle[1] c_cangle[2] c_cangle[3] c_cangle[4]
+
+
+fix f2 all	npt	temp ${Tfix} ${Tfix} 0.1 iso ${Pfix} ${Pfix} 0.1 drag 1
+
+#compute_modify tempgb extra 1
+
+fix f2cross all bond/create 1000 1 4 ${Rmin} 3 prob ${Cprob} ${Cseed} atype 3 iparam 1 1 jparam 1 4
+
+#restart 20000 ./f_cross=${fcross}/seed_${Seed_num}/restart_${outputname_cross}
+
+thermo 10000
+thermo_style custom step xhi temp press evdwl ebond eangle etotal pe ke
+run_style	verlet
+run 200000
+
+unfix f2
+unfix f2cross
+
+undump d1
+undump d2
+undump d3
+
+#uncompute tempgb
+#uncompute q 
+#uncompute shape
+uncompute cbond 
+uncompute cangle
+
+
+###--------------------- (3) Relax the system after crosslinking -----------------------------------------
+reset_timestep 0
+
+###--------------------- Propertry compute -------------------------------
+#compute		tempgb 	all		temp/asphere 
+#compute		q 		all 	property/atom quatw quati quatj quatk
+#compute		shape 	all 	property/atom shapex shapey shapez
+
+compute 	cbond 	all 	property/local btype batom1 batom2
+compute 	cangle 	all 	property/local atype aatom1 aatom2 aatom3
+
+###--------------------- Output quantities per atom ----------------------
+dump 	d1 all custom 1000 ./f_cross=${fcross}/seed_${Seed_num}/${outputname_relax_after}_*.txt &
+	     					id mol type q x y z  
+dump	d2 all local 5000 ./f_cross=${fcross}/seed_${Seed_num}/bond_${outputname_relax_after}_*.txt &
+							c_cbond[1] c_cbond[2] c_cbond[3]
+dump	d3 all local 5000 ./f_cross=${fcross}/seed_${Seed_num}/angle_${outputname_relax_after}_*.txt &
+							c_cangle[1] c_cangle[2] c_cangle[3] c_cangle[4]
+
+
+fix f3 all	npt	temp ${Tfix} ${Tfix} 0.1 iso ${Pfix} ${Pfix} 0.1 drag 1
+
+#compute_modify tempgb extra 1
+
+restart 20000 ./f_cross=${fcross}/seed_${Seed_num}/restart_${outputname_relax_after}
+
+thermo 1000
+thermo_style custom step xhi temp press evdwl ebond eangle etotal pe ke
+run_style	verlet
+run 100000
+
+unfix f3
+
+undump d1
+undump d2
+undump d3
+
+#uncompute tempgb
+#uncompute q 
+#uncompute shape
+uncompute cbond 
+uncompute cangle
+
+
+###--------------------- Output cell length ----------------------
+### Store final cell length (if we use NPT ensemble, cell size may change) 
+
+
+echo	log
+
+
